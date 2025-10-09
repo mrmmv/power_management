@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PowerGuard - Smart Energy Monitor</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -325,6 +327,7 @@
         .status-fault { background: linear-gradient(135deg, var(--danger), #d00000); }
         .status-overload { background: linear-gradient(135deg, var(--warning), #e85d04); }
         .status-short_circuit { background: linear-gradient(135deg, #dc2f02, #9d0208); }
+        .status-override { background: linear-gradient(135deg, #7209b7, #3a0ca3); }
 
         /* Buttons */
         .btn { 
@@ -363,6 +366,11 @@
 
         .btn-calculate { 
             background: linear-gradient(135deg, #7209b7, #3a0ca3);
+            color: white; 
+        }
+
+        .btn-remote { 
+            background: linear-gradient(135deg, #f8961e, #e85d04);
             color: white; 
         }
 
@@ -555,6 +563,49 @@
             margin-bottom: 1rem;
         }
 
+        /* Remote Status */
+        .remote-status-card {
+            background: linear-gradient(135deg, rgba(67, 97, 238, 0.1), rgba(58, 12, 163, 0.1));
+            border: 2px solid rgba(67, 97, 238, 0.2);
+        }
+
+        /* Notification Styles */
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 10000;
+            animation: slideInRight 0.3s ease;
+        }
+
+        .notification.success {
+            background: var(--success);
+            color: white;
+        }
+
+        .notification.error {
+            background: var(--danger);
+            color: white;
+        }
+
+        .notification.info {
+            background: var(--info);
+            color: white;
+        }
+
+        @keyframes slideInRight {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        @keyframes slideOutRight {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
+
         /* Mobile Responsive Styles */
         @media (max-width: 1024px) {
             .sidebar {
@@ -709,6 +760,10 @@
                     <span class="menu-text">Nodes</span>
                     <span class="badge" id="fault-badge" style="display: none;">!</span>
                 </a>
+                <a href="#" class="menu-item" data-target="master-keys">
+                    <i class="fas fa-key"></i>
+                    <span class="menu-text">Master Keys</span>
+                </a>
                 <a href="#" class="menu-item" data-target="calculator">
                     <i class="fas fa-calculator"></i>
                     <span class="menu-text">Calculator</span>
@@ -755,6 +810,26 @@
 
             <!-- Dashboard Section -->
             <div id="dashboard" class="section active">
+                <!-- Remote Control Status -->
+                <div class="form-card remote-status-card">
+                    <h3 style="color: var(--primary); margin-bottom: 1rem;">
+                        <i class="fas fa-satellite"></i> Remote Control Status
+                    </h3>
+                    <div id="remote-status">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <div style="font-size: 0.9rem; color: #666;">Connection Status</div>
+                                <div style="font-weight: 600; color: var(--success);">
+                                    <i class="fas fa-cloud"></i> Connected to Firebase
+                                </div>
+                            </div>
+                            <div id="system-stats">
+                                <i class="fas fa-sync fa-spin"></i> Loading...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="stats-grid">
                     <div class="stat-card">
                         <div class="stat-icon">
@@ -813,38 +888,73 @@
                 </div>
             </div>
 
+            <!-- Master Keys Section -->
+            <div id="master-keys" class="section">
+                <h2 style="color: white; margin-bottom: 1.5rem;">Master Keys Management</h2>
+                <div class="form-card">
+                    <h3 style="color: var(--primary); margin-bottom: 1rem;">
+                        <i class="fas fa-key"></i> Registered Master Keys
+                    </h3>
+                    <div id="master-keys-list">
+                        <div style="text-align: center; padding: 2rem;">
+                            <i class="fas fa-sync fa-spin" style="font-size: 2rem; color: var(--primary); margin-bottom: 1rem;"></i>
+                            <p>Loading master keys...</p>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group" style="margin-top: 2rem;">
+                        <h3 style="color: var(--primary); margin-bottom: 1rem;">
+                            <i class="fas fa-plus-circle"></i> Register New Master Key
+                        </h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Master Key ID</label>
+                                <input type="text" id="new-key-id" placeholder="master_key_001">
+                            </div>
+                            <div class="form-group">
+                                <label>Master Key Name</label>
+                                <input type="text" id="new-key-name" placeholder="Main Master Key">
+                            </div>
+                        </div>
+                        <button class="btn btn-save" onclick="registerMasterKey()">
+                            <i class="fas fa-key"></i> Register Master Key
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <!-- Calculator Section -->
-<div id="calculator" class="section">
-    <h2 style="color: white; margin-bottom: 1.5rem;">Energy Calculator</h2>
-    <div class="form-card">
-        <div class="form-row">
-            <div class="form-group">
-                <label><i class="fas fa-bolt"></i> Power (Watts)</label>
-                <input type="number" id="power" placeholder="Enter power consumption in watts" 
-                       oninput="calculateAutoConsumption()">
+            <div id="calculator" class="section">
+                <h2 style="color: white; margin-bottom: 1.5rem;">Energy Calculator</h2>
+                <div class="form-card">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label><i class="fas fa-bolt"></i> Power (Watts)</label>
+                            <input type="number" id="power" placeholder="Enter power consumption in watts" 
+                                   oninput="calculateAutoConsumption()">
+                        </div>
+                        <div class="form-group">
+                            <label><i class="fas fa-clock"></i> Hours used per day</label>
+                            <input type="number" id="hours" placeholder="Enter daily usage hours" 
+                                   oninput="calculateAutoConsumption()">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label><i class="fas fa-money-bill-wave"></i> Rate per kWh (₱)</label>
+                        <input type="number" id="rate" step="0.01" placeholder="Enter electricity rate in PHP" 
+                               oninput="calculateAutoConsumption()">
+                    </div>
+                    
+                    <div class="auto-result" id="auto-result">
+                        <h3><i class="fas fa-chart-pie"></i> Automatic Calculation</h3>
+                        <p>Energy Consumption: <strong id="auto-kwh">0</strong> kWh</p>
+                        <p>Estimated Cost: <strong>₱<span id="auto-cost">0</span></strong> per day</p>
+                        <p style="margin-top: 0.5rem; font-size: 0.9rem; color: #666;">
+                            Monthly Estimate: <strong>₱<span id="auto-monthly">0</span></strong>
+                        </p>
+                    </div>
+                </div>
             </div>
-            <div class="form-group">
-                <label><i class="fas fa-clock"></i> Hours used per day</label>
-                <input type="number" id="hours" placeholder="Enter daily usage hours" 
-                       oninput="calculateAutoConsumption()">
-            </div>
-        </div>
-        <div class="form-group">
-            <label><i class="fas fa-money-bill-wave"></i> Rate per kWh (₱)</label>
-            <input type="number" id="rate" step="0.01" placeholder="Enter electricity rate in PHP" 
-                   oninput="calculateAutoConsumption()">
-        </div>
-        
-        <div class="auto-result" id="auto-result">
-            <h3><i class="fas fa-chart-pie"></i> Automatic Calculation</h3>
-            <p>Energy Consumption: <strong id="auto-kwh">0</strong> kWh</p>
-            <p>Estimated Cost: <strong>₱<span id="auto-cost">0</span></strong> per day</p>
-            <p style="margin-top: 0.5rem; font-size: 0.9rem; color: #666;">
-                Monthly Estimate: <strong>₱<span id="auto-monthly">0</span></strong>
-            </p>
-        </div>
-    </div>
-</div>
 
             <!-- Settings Section -->
             <div id="settings" class="section">
@@ -855,7 +965,7 @@
                     </h3>
                     <div class="form-group">
                         <label>Alert Phone Number</label>
-                        <input type="text" id="alert-phone" placeholder="+1234567890">
+                        <input type="text" id="alert-phone" placeholder="+639123456789">
                     </div>
                     
                     <h3 style="margin-bottom: 1rem; color: var(--primary);">
@@ -877,7 +987,7 @@
                     </h3>
                     <div class="form-group">
                         <label>Rate per kWh (₱)</label>
-                        <input type="number" id="rate-per-kwh" step="0.01" placeholder="0.15">
+                        <input type="number" id="rate-per-kwh" step="0.01" placeholder="8.0">
                     </div>
                     
                     <button class="btn btn-save" onclick="saveSettings()">
@@ -887,765 +997,1044 @@
                 </div>
             </div>
 
-      <!-- Analytics Section -->
-<div id="analytics" class="section">
-    <h2 style="color: white; margin-bottom: 1.5rem;">Energy Analytics</h2>
-    <div class="stats-grid">
-        <div class="stat-card">
-            <div class="stat-icon">
-                <i class="fas fa-tree"></i>
+            <!-- Analytics Section -->
+            <div id="analytics" class="section">
+                <h2 style="color: white; margin-bottom: 1.5rem;">Energy Analytics</h2>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-tree"></i>
+                        </div>
+                        <h3>Carbon Saved</h3>
+                        <div class="stat-value" id="carbon-saved">0 kg</div>
+                        <div class="stat-change change-positive">
+                            <i class="fas fa-leaf"></i> Eco Friendly
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-money-bill-wave"></i>
+                        </div>
+                        <h3>Money Saved</h3>
+                        <div class="stat-value" id="money-saved">₱0</div>
+                        <div class="stat-change change-positive">
+                            <i class="fas fa-piggy-bank"></i> This Month
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-bolt"></i>
+                        </div>
+                        <h3>Total Energy Used</h3>
+                        <div class="stat-value" id="total-energy">0 kWh</div>
+                        <div class="stat-change change-positive">
+                            <i class="fas fa-chart-line"></i> All Time
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="chart-container">
+                    <h3 style="margin-bottom: 1rem;">Monthly Consumption Analysis</h3>
+                    <canvas id="analyticsChart" width="400" height="200"></canvas>
+                </div>
+                
+                <div class="chart-container">
+                    <h3 style="margin-bottom: 1rem;">Node-wise Consumption</h3>
+                    <canvas id="nodeChart" width="400" height="200"></canvas>
+                </div>
+                
+                <div class="chart-container">
+                    <h3 style="margin-bottom: 1rem;">Daily Consumption Pattern</h3>
+                    <canvas id="dailyChart" width="400" height="200"></canvas>
+                </div>
             </div>
-            <h3>Carbon Saved</h3>
-            <div class="stat-value" id="carbon-saved">0 kg</div>
-            <div class="stat-change change-positive">
-                <i class="fas fa-leaf"></i> Eco Friendly
-            </div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-icon">
-                <i class="fas fa-money-bill-wave"></i>
-            </div>
-            <h3>Money Saved</h3>
-            <div class="stat-value" id="money-saved">₱0</div>
-            <div class="stat-change change-positive">
-                <i class="fas fa-piggy-bank"></i> This Month
-            </div>
-        </div>
-    </div>
-    
-    <div class="chart-container">
-        <h3 style="margin-bottom: 1rem;">Monthly Consumption Analysis</h3>
-        <canvas id="analyticsChart" width="400" height="200"></canvas>
-    </div>
-</div>
 
             <!-- About the Developer Section -->
-<div id="developer" class="section">
-    <h2 style="color: white; margin-bottom: 1.5rem;">About the Developer</h2>
-    <div class="developer-content">
-        <!-- Developer Profile -->
-        <div style="text-align: center; margin-bottom: 2rem;">
-            <div style="width: 120px; height: 120px; border-radius: 50%; background: linear-gradient(135deg, var(--primary), var(--secondary)); margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center;">
-                <i class="fas fa-user" style="font-size: 3rem; color: white;"></i>
-            </div>
-            <h3 style="color: var(--primary); margin-bottom: 0.5rem;">Meynard B. Villanueva</h3>
-            <p style="color: #666; font-size: 1.1rem; margin-bottom: 0.5rem;">Developer & Researcher</p>
-            <div style="display: flex; justify-content: center; gap: 1rem; margin-bottom: 1.5rem;">
-                
+            <div id="developer" class="section">
+                <h2 style="color: white; margin-bottom: 1.5rem;">About the Developer</h2>
+                <div class="developer-content">
+                    <!-- Developer Profile -->
+                    <div style="text-align: center; margin-bottom: 2rem;">
+                        <div style="width: 120px; height: 120px; border-radius: 50%; background: linear-gradient(135deg, var(--primary), var(--secondary)); margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center;">
+                            <i class="fas fa-user" style="font-size: 3rem; color: white;"></i>
+                        </div>
+                        <h3 style="color: var(--primary); margin-bottom: 0.5rem;">Meynard B. Villanueva</h3>
+                        <p style="color: #666; font-size: 1.1rem;">Electronics Engineer & IoT Developer</p>
+                    </div>
+                    
+                    <!-- Tech Stack -->
+                    <h3 style="color: var(--primary); margin-bottom: 1rem;">Technology Stack</h3>
+                    <div class="tech-stack">
+                        <div class="tech-item">
+                            <div class="tech-icon">
+                                <i class="fas fa-microchip"></i>
+                            </div>
+                            <h4>Arduino</h4>
+                            <p>Microcontroller Programming</p>
+                        </div>
+                        <div class="tech-item">
+                            <div class="tech-icon">
+                                <i class="fas fa-wifi"></i>
+                            </div>
+                            <h4>ESP8266</h4>
+                            <p>WiFi Connectivity</p>
+                        </div>
+                        <div class="tech-item">
+                            <div class="tech-icon">
+                                <i class="fas fa-database"></i>
+                            </div>
+                            <h4>Firebase</h4>
+                            <p>Real-time Database</p>
+                        </div>
+                        <div class="tech-item">
+                            <div class="tech-icon">
+                                <i class="fas fa-code"></i>
+                            </div>
+                            <h4>Web Development</h4>
+                            <p>HTML, CSS, JavaScript</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Project Description -->
+                    <h3 style="color: var(--primary); margin-top: 2rem; margin-bottom: 1rem;">About PowerGuard</h3>
+                    <p style="line-height: 1.6; margin-bottom: 1.5rem;">
+                        PowerGuard is an innovative IoT-based smart energy monitoring and protection system designed to 
+                        provide real-time monitoring of electrical consumption, detect faults, and prevent electrical hazards. 
+                        The system integrates hardware and software components to create a comprehensive solution for 
+                        residential and commercial energy management.
+                    </p>
+                    
+                    <!-- System Features -->
+                    <h3 style="color: var(--primary); margin-bottom: 1rem;">System Features</h3>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
+                        <div style="padding: 1rem; background: rgba(67, 97, 238, 0.1); border-radius: 8px;">
+                            <i class="fas fa-bolt" style="color: var(--primary); margin-bottom: 0.5rem;"></i>
+                            <h4>Real-time Monitoring</h4>
+                            <p>Track energy consumption in real-time</p>
+                        </div>
+                        <div style="padding: 1rem; background: rgba(76, 201, 240, 0.1); border-radius: 8px;">
+                            <i class="fas fa-shield-alt" style="color: var(--success); margin-bottom: 0.5rem;"></i>
+                            <h4>Fault Detection</h4>
+                            <p>Identify overloads and short circuits</p>
+                        </div>
+                        <div style="padding: 1rem; background: rgba(247, 37, 133, 0.1); border-radius: 8px;">
+                            <i class="fas fa-chart-bar" style="color: var(--danger); margin-bottom: 0.5rem;"></i>
+                            <h4>Analytics</h4>
+                            <p>Detailed consumption analytics</p>
+                        </div>
+                        <div style="padding: 1rem; background: rgba(248, 150, 30, 0.1); border-radius: 8px;">
+                            <i class="fas fa-mobile-alt" style="color: var(--warning); margin-bottom: 0.5rem;"></i>
+                            <h4>Remote Control</h4>
+                            <p>Control devices remotely</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Contact Information -->
+                    <h3 style="color: var(--primary); margin-bottom: 1rem;">Contact Information</h3>
+                    <div style="display: flex; flex-wrap: wrap; gap: 1.5rem;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <i class="fas fa-envelope" style="color: var(--primary);"></i>
+                            <span>meynard.villanueva@example.com</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <i class="fas fa-phone" style="color: var(--primary);"></i>
+                            <span>+63 912 345 6789</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <i class="fab fa-linkedin" style="color: var(--primary);"></i>
+                            <span>linkedin.com/in/meynardvillanueva</span>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
-
-        <!-- About Me -->
-        <div style="margin-bottom: 2rem;">
-            <h3 style="color: var(--primary); margin-bottom: 1rem;">
-                <i class="fas fa-user-circle"></i> About Me
-            </h3>
-            <p style="line-height: 1.6; margin-bottom: 1rem;">
-                Passionate full-stack developer and IoT enthusiast with 5+ years of experience in creating 
-                innovative solutions that bridge the digital and physical worlds. Specialized in embedded systems, 
-                web development, and cloud integration.
-            </p>
-            <p style="line-height: 1.6;">
-                I believe in creating technology that makes people's lives easier, safer, and more efficient. 
-                PowerGuard represents my commitment to sustainable energy management and smart home automation.
-            </p>
-        </div>
-
-        <!-- Skills & Expertise -->
-        <div style="margin-bottom: 2rem;">
-            <h3 style="color: var(--primary); margin-bottom: 1rem;">
-                <i class="fas fa-star"></i> Skills & Expertise
-            </h3>
-            <div class="tech-stack">
-                <div class="tech-item">
-                    <div class="tech-icon">
-                        <i class="fab fa-python"></i>
-                    </div>
-                    <h4>Python & Flask</h4>
-                    <p>Backend Development</p>
-                </div>
-                <div class="tech-item">
-                    <div class="tech-icon">
-                        <i class="fab fa-js"></i>
-                    </div>
-                    <h4>JavaScript</h4>
-                    <p>Frontend Development</p>
-                </div>
-                <div class="tech-item">
-                    <div class="tech-icon">
-                        <i class="fas fa-microchip"></i>
-                    </div>
-                    <h4>IoT & Embedded</h4>
-                    <p>ESP8266, Arduino</p>
-                </div>
-                <div class="tech-item">
-                    <div class="tech-icon">
-                        <i class="fas fa-database"></i>
-                    </div>
-                    <h4>Database</h4>
-                    <p>Firebase, MySQL</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Project Information -->
-        <div style="margin-bottom: 2rem;">
-            <h3 style="color: var(--primary); margin-bottom: 1rem;">
-                <i class="fas fa-project-diagram"></i> About PowerGuard
-            </h3>
-            <p style="line-height: 1.6; margin-bottom: 1rem;">
-                PowerGuard is a comprehensive smart energy monitoring system I developed to address the growing 
-                need for efficient energy management and electrical safety in modern households and businesses.
-            </p>
-            
-            <h4 style="color: var(--secondary); margin: 1.5rem 0 1rem;">Key Features Developed:</h4>
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
-                <div style="background: rgba(67, 97, 238, 0.1); padding: 1rem; border-radius: 8px; border-left: 4px solid var(--primary);">
-                    <h5 style="color: var(--primary); margin-bottom: 0.5rem;">Real-time Monitoring</h5>
-                    <p style="font-size: 0.9rem; color: #666;">Live power consumption tracking with ACS712 sensors</p>
-                </div>
-                <div style="background: rgba(76, 201, 240, 0.1); padding: 1rem; border-radius: 8px; border-left: 4px solid var(--success);">
-                    <h5 style="color: var(--success); margin-bottom: 0.5rem;">Safety Protection</h5>
-                    <p style="font-size: 0.9rem; color: #666;">Overload & short circuit detection with automatic cutoff</p>
-                </div>
-                <div style="background: rgba(247, 37, 133, 0.1); padding: 1rem; border-radius: 8px; border-left: 4px solid var(--danger);">
-                    <h5 style="color: var(--danger); margin-bottom: 0.5rem;">Smart Alerts</h5>
-                    <p style="font-size: 0.9rem; color: #666;">SMS notifications via SIM900A module</p>
-                </div>
-                <div style="background: rgba(248, 150, 30, 0.1); padding: 1rem; border-radius: 8px; border-left: 4px solid var(--warning);">
-                    <h5 style="color: var(--warning); margin-bottom: 0.5rem;">Web Dashboard</h5>
-                    <p style="font-size: 0.9rem; color: #666;">Responsive interface with real-time analytics</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Contact Information -->
-        <div style="margin-bottom: 2rem;">
-            <h3 style="color: var(--primary); margin-bottom: 1rem;">
-                <i class="fas fa-address-card"></i> Contact Information
-            </h3>
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
-                <div style="text-align: center; padding: 1rem; background: rgba(67, 97, 238, 0.05); border-radius: 8px;">
-                    <i class="fas fa-envelope" style="color: var(--primary); font-size: 1.5rem; margin-bottom: 0.5rem;"></i>
-                    <h5 style="color: var(--dark); margin-bottom: 0.25rem;">Email</h5>
-                    <p style="color: #666; font-size: 0.9rem;">meynard.villanueva@example.com</p>
-                </div>
-                <div style="text-align: center; padding: 1rem; background: rgba(67, 97, 238, 0.05); border-radius: 8px;">
-                    <i class="fas fa-phone" style="color: var(--primary); font-size: 1.5rem; margin-bottom: 0.5rem;"></i>
-                    <h5 style="color: var(--dark); margin-bottom: 0.25rem;">Phone</h5>
-                    <p style="color: #666; font-size: 0.9rem;">+639358392329</p>
-                </div>
-                <div style="text-align: center; padding: 1rem; background: rgba(67, 97, 238, 0.05); border-radius: 8px;">
-                    <i class="fas fa-map-marker-alt" style="color: var(--primary); font-size: 1.5rem; margin-bottom: 0.5rem;"></i>
-                    <h5 style="color: var(--dark); margin-bottom: 0.25rem;">Location</h5>
-                    <p style="color: #666; font-size: 0.9rem;">Oriental Mindoro, Philippines</p>
-                </div>
-            </div>
-        </div>  
     </div>
-</div>
+
     <script>
-        // Global variables
-        let powerChart, analyticsChart;
-        let currentSection = 'dashboard';
-        let sidebarCollapsed = false;
-        let faultCount = 0;
-        let previousEnergyData = { daily: 0, weekly: 0, monthly: 0 };
-        let autoCalculationTimeout;
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyA7muUhSiZayLr68WW-AxCkuqxp_hw2lIQ",
+            authDomain: "power-outlet-5465c.firebaseapp.com",
+            databaseURL: "https://power-outlet-5465c-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "power-outlet-5465c",
+            storageBucket: "power-outlet-5465c.firebasestorage.app",
+            messagingSenderId: "523246709275",
+            appId: "1:523246709275:web:05d7f6ae5c275c8a8866be"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        // DOM Elements
+        const sidebar = document.getElementById('sidebar');
+        const mainContent = document.getElementById('mainContent');
+        const toggleSidebar = document.getElementById('toggleSidebar');
+        const mobileMenuToggle = document.getElementById('mobileMenuToggle');
+        const mobileMenuOpen = document.getElementById('mobileMenuOpen');
+        const mobileOverlay = document.getElementById('mobileOverlay');
+        const menuItems = document.querySelectorAll('.menu-item');
+        const sections = document.querySelectorAll('.section');
+        const pageTitle = document.getElementById('pageTitle');
+
+        // Chart instances
+        let powerChart, analyticsChart, nodeChart, dailyChart;
 
         // Initialize the application
         document.addEventListener('DOMContentLoaded', function() {
-            initializeApp();
+            // Initialize charts
+            initializeCharts();
+            
+            // Load initial data
+            loadDashboardData();
+            loadNodesData();
+            loadMasterKeys();
+            loadSettings(); // Load settings from backend
+            
+            // Set up real-time listeners
+            setupRealtimeListeners();
+            
+            // Check screen size for responsive behavior
+            checkScreenSize();
+            
+            // Add event listeners
+            setupEventListeners();
+            
+            // Show notification
+            showNotification('Connected to Firebase Realtime Database', 'success');
         });
 
-        function initializeApp() {
-            setupNavigation();
-            setupSidebar();
-            setupMobileMenu();
-            loadDashboard();
-        }
-
-        // Mobile menu setup
-        function setupMobileMenu() {
-            const mobileMenuOpen = document.getElementById('mobileMenuOpen');
-            const mobileMenuToggle = document.getElementById('mobileMenuToggle');
-            const mobileOverlay = document.getElementById('mobileOverlay');
-            const sidebar = document.getElementById('sidebar');
-
-            // Show mobile menu button on small screens
-            if (window.innerWidth <= 1024) {
-                mobileMenuOpen.style.display = 'flex';
-            }
-
-            // Toggle mobile menu
-            mobileMenuOpen.addEventListener('click', function() {
-                sidebar.classList.add('mobile-open');
-                mobileOverlay.classList.add('active');
-            });
-
-            mobileMenuToggle.addEventListener('click', function() {
-                sidebar.classList.remove('mobile-open');
-                mobileOverlay.classList.remove('active');
-            });
-
-            mobileOverlay.addEventListener('click', function() {
-                sidebar.classList.remove('mobile-open');
-                mobileOverlay.classList.remove('active');
-            });
-
-            // Update mobile menu button on resize
-            window.addEventListener('resize', function() {
-                if (window.innerWidth <= 1024) {
-                    mobileMenuOpen.style.display = 'flex';
-                } else {
-                    mobileMenuOpen.style.display = 'none';
-                    sidebar.classList.remove('mobile-open');
-                    mobileOverlay.classList.remove('active');
-                }
-            });
-        }
-
-        // Navigation setup
-        function setupNavigation() {
-            document.querySelectorAll('.menu-item').forEach(link => {
-                link.addEventListener('click', function(e) {
+        // Setup event listeners
+        function setupEventListeners() {
+            // Toggle sidebar
+            toggleSidebar.addEventListener('click', toggleSidebarHandler);
+            
+            // Mobile menu toggle
+            mobileMenuToggle.addEventListener('click', closeMobileMenu);
+            mobileMenuOpen.addEventListener('click', openMobileMenu);
+            mobileOverlay.addEventListener('click', closeMobileMenu);
+            
+            // Menu item clicks
+            menuItems.forEach(item => {
+                item.addEventListener('click', function(e) {
                     e.preventDefault();
                     const target = this.getAttribute('data-target');
-                    navigateToSection(target);
+                    switchSection(target);
+                    updateActiveMenuItem(this);
                     
-                    // Close mobile menu after navigation
+                    // Close mobile menu after selection
                     if (window.innerWidth <= 1024) {
-                        document.getElementById('sidebar').classList.remove('mobile-open');
-                        document.getElementById('mobileOverlay').classList.remove('active');
+                        closeMobileMenu();
                     }
                 });
             });
+            
+            // Window resize handler
+            window.addEventListener('resize', checkScreenSize);
         }
 
-        // Sidebar setup
-        function setupSidebar() {
-            const toggleBtn = document.getElementById('toggleSidebar');
-            const sidebar = document.getElementById('sidebar');
-            const mainContent = document.getElementById('mainContent');
-
-            // Only enable sidebar toggle on larger screens
-            if (window.innerWidth > 1024) {
-                toggleBtn.addEventListener('click', function() {
-                    sidebarCollapsed = !sidebarCollapsed;
-                    sidebar.classList.toggle('collapsed');
-                    mainContent.classList.toggle('expanded');
-                    
-                    // Rotate the icon
-                    const icon = this.querySelector('i');
-                    icon.style.transform = sidebarCollapsed ? 'rotate(180deg)' : 'rotate(0deg)';
-                });
+        // Toggle sidebar handler
+        function toggleSidebarHandler() {
+            sidebar.classList.toggle('collapsed');
+            mainContent.classList.toggle('expanded');
+            
+            // Update toggle button icon
+            const icon = toggleSidebar.querySelector('i');
+            if (sidebar.classList.contains('collapsed')) {
+                icon.className = 'fas fa-chevron-right';
             } else {
-                toggleBtn.style.display = 'none';
+                icon.className = 'fas fa-chevron-left';
             }
         }
 
-        // Section navigation
-        function navigateToSection(target) {
-            // Update active menu item
-            document.querySelectorAll('.menu-item').forEach(item => {
-                item.classList.remove('active');
-            });
-            event.target.classList.add('active');
+        // Mobile menu functions
+        function openMobileMenu() {
+            sidebar.classList.add('mobile-open');
+            mobileOverlay.classList.add('active');
+        }
 
-            // Update active section
-            document.querySelectorAll('.section').forEach(section => {
+        function closeMobileMenu() {
+            sidebar.classList.remove('mobile-open');
+            mobileOverlay.classList.remove('active');
+        }
+
+        // Check screen size for responsive behavior
+        function checkScreenSize() {
+            if (window.innerWidth <= 1024) {
+                mobileMenuOpen.style.display = 'block';
+                sidebar.classList.remove('collapsed');
+                mainContent.classList.remove('expanded');
+            } else {
+                mobileMenuOpen.style.display = 'none';
+                sidebar.classList.remove('mobile-open');
+                mobileOverlay.classList.remove('active');
+            }
+        }
+
+        // Switch between sections
+        function switchSection(target) {
+            // Hide all sections
+            sections.forEach(section => {
                 section.classList.remove('active');
             });
+            
+            // Show target section
             document.getElementById(target).classList.add('active');
-
+            
             // Update page title
+            updatePageTitle(target);
+            
+            // Load section-specific data if needed
+            if (target === 'nodes') {
+                loadNodesData();
+            } else if (target === 'analytics') {
+                loadAnalyticsData();
+            } else if (target === 'settings') {
+                loadSettings();
+            }
+        }
+
+        // Update active menu item
+        function updateActiveMenuItem(activeItem) {
+            menuItems.forEach(item => {
+                item.classList.remove('active');
+            });
+            activeItem.classList.add('active');
+        }
+
+        // Update page title based on active section
+        function updatePageTitle(section) {
             const titles = {
                 'dashboard': 'Dashboard Overview',
                 'nodes': 'Nodes Management',
+                'master-keys': 'Master Keys Management',
                 'calculator': 'Energy Calculator',
                 'settings': 'System Settings',
                 'analytics': 'Energy Analytics',
-                'developer': 'Developer Information'
+                'developer': 'About the Developer'
             };
-            document.getElementById('pageTitle').textContent = titles[target];
-
-            currentSection = target;
-
-            // Load section-specific data
-            switch(target) {
-                case 'dashboard':
-                    loadDashboard();
-                    break;
-                case 'nodes':
-                    loadNodesManagement();
-                    break;
-                case 'settings':
-                    loadSettings();
-                    break;
-                case 'analytics':
-                    loadAnalytics();
-                    break;
-            }
-        }
-
-        // Update fault badge
-        function updateFaultBadge() {
-            const badge = document.getElementById('fault-badge');
-            if (faultCount > 0) {
-                badge.style.display = 'flex';
-                badge.textContent = faultCount > 9 ? '9+' : faultCount;
-            } else {
-                badge.style.display = 'none';
-            }
-        }
-
-        // Calculate percentage change
-        function calculateChange(current, previous) {
-            if (previous === 0) return 100;
-            return ((current - previous) / previous) * 100;
-        }
-
-        // Update trend indicators
-        function updateTrendIndicators(currentData) {
-            const dailyChange = calculateChange(currentData.daily, previousEnergyData.daily);
-            const weeklyChange = calculateChange(currentData.weekly, previousEnergyData.weekly);
-            const monthlyChange = calculateChange(currentData.monthly, previousEnergyData.monthly);
-
-            document.getElementById('daily-change').innerHTML = 
-                `<i class="fas fa-arrow-${dailyChange >= 0 ? 'up' : 'down'}"></i> ${Math.abs(dailyChange).toFixed(1)}% from previous`;
-            document.getElementById('daily-change').className = `stat-change ${dailyChange >= 0 ? 'change-positive' : 'change-negative'}`;
-
-            document.getElementById('weekly-change').innerHTML = 
-                `<i class="fas fa-arrow-${weeklyChange >= 0 ? 'up' : 'down'}"></i> ${Math.abs(weeklyChange).toFixed(1)}% from previous`;
-            document.getElementById('weekly-change').className = `stat-change ${weeklyChange >= 0 ? 'change-positive' : 'change-negative'}`;
-
-            document.getElementById('monthly-change').innerHTML = 
-                `<i class="fas fa-arrow-${monthlyChange >= 0 ? 'up' : 'down'}"></i> ${Math.abs(monthlyChange).toFixed(1)}% from previous`;
-            document.getElementById('monthly-change').className = `stat-change ${monthlyChange >= 0 ? 'change-positive' : 'change-negative'}`;
-
-            // Update previous data
-            previousEnergyData = { ...currentData };
-        }
-
-        // Automatic Calculator Function
-        function calculateAutoConsumption() {
-            // Clear previous timeout
-            clearTimeout(autoCalculationTimeout);
             
-            // Set new timeout to calculate after user stops typing
-            autoCalculationTimeout = setTimeout(() => {
-                const power = parseFloat(document.getElementById('power').value) || 0;
-                const hours = parseFloat(document.getElementById('hours').value) || 0;
-                const rate = parseFloat(document.getElementById('rate').value) || 0;
-
-                if (power > 0 && hours > 0 && rate > 0) {
-                    const kwh = (power * hours) / 1000;
-                    const cost = kwh * rate;
-                    const monthlyCost = cost * 30;
-
-                    document.getElementById('auto-kwh').textContent = kwh.toFixed(2);
-                    document.getElementById('auto-cost').textContent = cost.toFixed(2);
-                    document.getElementById('auto-monthly').textContent = monthlyCost.toFixed(2);
-                    
-                    document.getElementById('auto-result').classList.add('show');
-                } else {
-                    document.getElementById('auto-result').classList.remove('show');
-                }
-            }, 500); // 500ms delay after user stops typing
+            pageTitle.textContent = titles[section] || 'PowerGuard';
         }
 
-        // Dashboard Functions
-        async function loadDashboard() {
-            await loadEnergyData();
-            await loadNodes();
-            await loadPowerTrend();
-            
-            // Set up periodic updates
-            setInterval(loadEnergyData, 30000);
-            setInterval(loadNodes, 5000);
-            setInterval(loadPowerTrend, 60000);
-        }
-
-        async function loadEnergyData() {
-            try {
-                const response = await fetch('/api/energy_data');
-                const data = await response.json();
-                
-                document.getElementById('daily-kwh').textContent = data.daily.toFixed(2) + ' kWh';
-                document.getElementById('weekly-kwh').textContent = data.weekly.toFixed(2) + ' kWh';
-                document.getElementById('monthly-kwh').textContent = data.monthly.toFixed(2) + ' kWh';
-                
-                updateTrendIndicators(data);
-            } catch (error) {
-                console.error('Error loading energy data:', error);
-                document.getElementById('daily-kwh').textContent = '0 kWh';
-                document.getElementById('weekly-kwh').textContent = '0 kWh';
-                document.getElementById('monthly-kwh').textContent = '0 kWh';
-            }
-        }
-
-        async function loadNodes() {
-            try {
-                const response = await fetch('/api/nodes');
-                const nodes = await response.json();
-                const container = document.getElementById('nodes-container');
-                
-                container.innerHTML = '';
-                faultCount = 0;
-                
-                if (Object.keys(nodes).length === 0) {
-                    container.innerHTML = `
-                        <div class="node-card" style="text-align: center; padding: 2rem; grid-column: 1 / -1;">
-                            <i class="fas fa-plug" style="font-size: 3rem; color: #ccc; margin-bottom: 1rem;"></i>
-                            <h3 style="color: #666; margin-bottom: 0.5rem;">No Nodes Connected</h3>
-                            <p style="color: #999;">Connect your ESP8266 nodes to see them here</p>
-                        </div>
-                    `;
-                    return;
-                }
-                
-                for (const [nodeId, node] of Object.entries(nodes)) {
-                    if (node.fault_status !== 'none') {
-                        faultCount++;
-                    }
-                    
-                    const statusClass = getStatusClass(node);
-                    const statusText = getStatusText(node);
-                    
-                    container.innerHTML += `
-                        <div class="node-card">
-                            <div class="node-header">
-                                <h3 style="color: var(--dark); margin: 0;">${node.name}</h3>
-                                <span class="status ${statusClass}">
-                                    <i class="fas ${getStatusIcon(node)}"></i>
-                                    ${statusText}
-                                </span>
-                            </div>
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
-                                <div>
-                                    <div style="font-size: 0.8rem; color: #666;">Current Power</div>
-                                    <div style="font-size: 1.5rem; font-weight: 700; color: var(--primary);">
-                                        ${node.current_power ? node.current_power.toFixed(1) : 0} W
-                                    </div>
-                                </div>
-                                <div>
-                                    <div style="font-size: 0.8rem; color: #666;">Current</div>
-                                    <div style="font-size: 1.5rem; font-weight: 700; color: var(--info);">
-                                        ${node.current_current ? node.current_current.toFixed(2) : 0} A
-                                    </div>
-                                </div>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                                <div>
-                                    <div style="font-size: 0.8rem; color: #666;">Relay Status</div>
-                                    <div style="font-weight: 600; color: ${node.relay_status === 'on' ? 'var(--success)' : 'var(--danger)'};">
-                                        ${node.relay_status || 'off'}
-                                    </div>
-                                </div>
-                                <div>
-                                    <div style="font-size: 0.8rem; color: #666;">Total Energy</div>
-                                    <div style="font-weight: 600; color: var(--dark);">
-                                        ${node.total_kwh ? node.total_kwh.toFixed(2) : 0} kWh
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="node-actions">
-                                ${node.fault_status !== 'none' ? 
-                                    `<button class="btn btn-reset" onclick="controlNode('${nodeId}', 'reset')">
-                                        <i class="fas fa-redo"></i> Reset
-                                    </button>` : ''}
-                                <button class="btn btn-on" onclick="controlNode('${nodeId}', 'on')">
-                                    <i class="fas fa-power-off"></i> On
-                                </button>
-                                <button class="btn btn-off" onclick="controlNode('${nodeId}', 'off')">
-                                    <i class="fas fa-power-off"></i> Off
-                                </button>
-                            </div>
-                        </div>
-                    `;
-                }
-                
-                updateFaultBadge();
-            } catch (error) {
-                console.error('Error loading nodes:', error);
-                const container = document.getElementById('nodes-container');
-                container.innerHTML = `
-                    <div class="node-card" style="text-align: center; padding: 2rem; grid-column: 1 / -1;">
-                        <i class="fas fa-exclamation-triangle" style="font-size: 3rem; color: var(--warning); margin-bottom: 1rem;"></i>
-                        <h3 style="color: #666; margin-bottom: 0.5rem;">Error Loading Nodes</h3>
-                        <p style="color: #999;">Unable to connect to the server</p>
-                    </div>
-                `;
-            }
-        }
-
-        async function loadPowerTrend() {
-            try {
-                const response = await fetch('/api/power_trend');
-                const data = await response.json();
-                
-                if (powerChart) {
-                    powerChart.destroy();
-                }
-                
-                const ctx = document.getElementById('powerChart').getContext('2d');
-                powerChart = new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels: data.labels,
-                        datasets: [{
-                            label: 'Total Power Consumption (W)',
-                            data: data.data,
-                            borderColor: '#4361ee',
-                            backgroundColor: 'rgba(67, 97, 238, 0.1)',
-                            borderWidth: 3,
-                            fill: true,
-                            tension: 0.4
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: {
-                                position: 'top',
-                            }
+        // Initialize charts
+        function initializeCharts() {
+            // Power Consumption Chart
+            const powerCtx = document.getElementById('powerChart').getContext('2d');
+            powerChart = new Chart(powerCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Power Consumption (kWh)',
+                        data: [],
+                        borderColor: '#4361ee',
+                        backgroundColor: 'rgba(67, 97, 238, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'top',
                         },
-                        scales: {
-                            y: {
-                                beginAtZero: true,
-                                grid: {
-                                    color: 'rgba(0,0,0,0.1)'
-                                }
-                            },
-                            x: {
-                                grid: {
-                                    color: 'rgba(0,0,0,0.1)'
-                                }
+                        title: {
+                            display: true,
+                            text: 'Today\'s Power Consumption'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'kWh'
                             }
                         }
                     }
-                });
-            } catch (error) {
-                console.error('Error loading power trend:', error);
-            }
-        }
-
-        function getStatusClass(node) {
-            if (node.fault_status !== 'none') {
-                return `status-${node.fault_status}`;
-            }
-            return node.status === 'online' ? 'status-online' : 'status-offline';
-        }
-
-        function getStatusText(node) {
-            if (node.fault_status !== 'none') {
-                return node.fault_status.replace('_', ' ').toUpperCase();
-            }
-            return node.status ? node.status.toUpperCase() : 'OFFLINE';
-        }
-
-        function getStatusIcon(node) {
-            if (node.fault_status !== 'none') {
-                return 'fa-exclamation-triangle';
-            }
-            return node.status === 'online' ? 'fa-check-circle' : 'fa-times-circle';
-        }
-
-        async function controlNode(nodeId, command) {
-            try {
-                const btn = event.target.closest('.btn');
-                const originalHTML = btn.innerHTML;
-                btn.innerHTML = '<div class="loading"></div>';
-                
-                await fetch(`/api/nodes/${nodeId}`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({command: command})
-                });
-                
-                btn.innerHTML = originalHTML;
-                loadNodes();
-            } catch (error) {
-                console.error('Error controlling node:', error);
-                btn.innerHTML = originalHTML;
-            }
-        }
-
-        // Nodes Management Functions
-        async function loadNodesManagement() {
-            try {
-                const response = await fetch('/api/nodes');
-                const nodes = await response.json();
-                const container = document.getElementById('nodes-list');
-                
-                container.innerHTML = '';
-                
-                if (Object.keys(nodes).length === 0) {
-                    container.innerHTML = `
-                        <div class="node-card" style="text-align: center; padding: 2rem; grid-column: 1 / -1;">
-                            <i class="fas fa-plug" style="font-size: 3rem; color: #ccc; margin-bottom: 1rem;"></i>
-                            <h3 style="color: #666; margin-bottom: 0.5rem;">No Nodes Connected</h3>
-                            <p style="color: #999;">Connect your ESP8266 nodes to see them here</p>
-                        </div>
-                    `;
-                    return;
                 }
-                
-                for (const [nodeId, node] of Object.entries(nodes)) {
-                    container.innerHTML += `
-                        <div class="node-card">
-                            <div class="node-header">
-                                <h3 style="color: var(--dark); margin: 0;">${node.name}</h3>
-                                <span class="status ${getStatusClass(node)}">
-                                    <i class="fas ${getStatusIcon(node)}"></i>
-                                    ${getStatusText(node)}
-                                </span>
-                            </div>
-                            <p style="color: #666; margin-bottom: 1rem;"><i class="fas fa-network-wired"></i> IP: ${node.ip}</p>
-                            <div class="form-group">
-                                <label>Node Name</label>
-                                <input type="text" id="name-${nodeId}" value="${node.name}">
-                            </div>
-                            <button class="btn btn-save" onclick="renameNode('${nodeId}')">
-                                <i class="fas fa-edit"></i> Rename Node
-                            </button>
-                        </div>
-                    `;
+            });
+
+            // Analytics Chart
+            const analyticsCtx = document.getElementById('analyticsChart').getContext('2d');
+            analyticsChart = new Chart(analyticsCtx, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Monthly Consumption (kWh)',
+                        data: [],
+                        backgroundColor: 'rgba(67, 97, 238, 0.7)',
+                        borderColor: '#4361ee',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        title: {
+                            display: true,
+                            text: 'Monthly Energy Consumption'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'kWh'
+                            }
+                        }
+                    }
                 }
-            } catch (error) {
-                console.error('Error loading nodes management:', error);
-            }
+            });
+
+            // Node Chart
+            const nodeCtx = document.getElementById('nodeChart').getContext('2d');
+            nodeChart = new Chart(nodeCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Node Consumption (kWh)',
+                        data: [],
+                        backgroundColor: [
+                            'rgba(67, 97, 238, 0.7)',
+                            'rgba(76, 201, 240, 0.7)',
+                            'rgba(58, 12, 163, 0.7)',
+                            'rgba(247, 37, 133, 0.7)',
+                            'rgba(248, 150, 30, 0.7)',
+                            'rgba(72, 149, 239, 0.7)'
+                        ],
+                        borderColor: [
+                            '#4361ee',
+                            '#4cc9f0',
+                            '#3a0ca3',
+                            '#f72585',
+                            '#f8961e',
+                            '#4895ef'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        title: {
+                            display: true,
+                            text: 'Node-wise Energy Consumption'
+                        }
+                    }
+                }
+            });
+
+            // Daily Chart
+            const dailyCtx = document.getElementById('dailyChart').getContext('2d');
+            dailyChart = new Chart(dailyCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Daily Consumption (kWh)',
+                        data: [],
+                        borderColor: '#f72585',
+                        backgroundColor: 'rgba(247, 37, 133, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        title: {
+                            display: true,
+                            text: 'Daily Consumption Pattern'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'kWh'
+                            }
+                        }
+                    }
+                }
+            });
         }
 
-        async function renameNode(nodeId) {
-            try {
-                const newName = document.getElementById(`name-${nodeId}`).value;
-                await fetch(`/api/nodes/${nodeId}/rename`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({name: newName})
-                });
-                loadNodesManagement();
-                
-                if (currentSection === 'dashboard') {
-                    loadNodes();
+        // Setup real-time Firebase listeners
+        function setupRealtimeListeners() {
+            // Listen for node updates
+            database.ref('nodes').on('value', function(snapshot) {
+                const nodes = snapshot.val();
+                if (nodes) {
+                    updateNodesUI(nodes);
+                    updateDashboardNodes(nodes);
+                    updateAnalyticsData(nodes);
                 }
-            } catch (error) {
-                console.error('Error renaming node:', error);
-            }
+            });
+
+            // Listen for consumption updates
+            database.ref('consumption').on('value', function(snapshot) {
+                const consumption = snapshot.val();
+                if (consumption) {
+                    updateConsumptionUI(consumption);
+                }
+            });
+
+            // Listen for master keys updates
+            database.ref('master_keys').on('value', function(snapshot) {
+                const masterKeys = snapshot.val();
+                if (masterKeys) {
+                    updateMasterKeysUI(masterKeys);
+                }
+            });
+
+            // Listen for settings updates
+            database.ref('settings').on('value', function(snapshot) {
+                const settings = snapshot.val();
+                if (settings) {
+                    updateSettingsUI(settings);
+                }
+            });
+
+            // Listen for historical data
+            database.ref('historical').on('value', function(snapshot) {
+                const historical = snapshot.val();
+                if (historical) {
+                    updateHistoricalCharts(historical);
+                }
+            });
         }
 
-        // Settings Functions
+        // Load dashboard data
+        function loadDashboardData() {
+            // This will be populated by real-time listeners
+            document.getElementById('system-stats').innerHTML = `
+                <span style="color: var(--success);">
+                    <i class="fas fa-check-circle"></i> System Online
+                </span>
+            `;
+        }
+
+        // Load nodes data
+        function loadNodesData() {
+            // This will be populated by real-time listeners
+        }
+
+        // Load master keys
+        function loadMasterKeys() {
+            // This will be populated by real-time listeners
+        }
+
+        // Load settings with proper API call
         async function loadSettings() {
             try {
                 const response = await fetch('/api/settings');
                 const settings = await response.json();
                 
-                document.getElementById('alert-phone').value = settings.alert_phone || '';
-                document.getElementById('overload-threshold').value = settings.overload_threshold || 4.5;
-                document.getElementById('short-threshold').value = settings.short_threshold || 8.0;
-                document.getElementById('rate-per-kwh').value = settings.rate_per_kwh || 0.15;
+                if (settings) {
+                    updateSettingsUI(settings);
+                }
             } catch (error) {
                 console.error('Error loading settings:', error);
+                showNotification('Error loading settings from server', 'error');
             }
         }
 
+        // Load analytics data
+        function loadAnalyticsData() {
+            // This will be populated by real-time listeners
+        }
+
+        // Update analytics data with real Firebase data
+        function updateAnalyticsData(nodes) {
+            if (!nodes) return;
+            
+            let totalEnergy = 0;
+            let totalMonthly = 0;
+            let nodeConsumption = {};
+            
+            // Calculate totals and node-wise consumption
+            Object.keys(nodes).forEach(nodeId => {
+                const node = nodes[nodeId];
+                if (node.total_kwh) {
+                    totalEnergy += node.total_kwh;
+                }
+                if (node.monthly_kwh) {
+                    totalMonthly += node.monthly_kwh;
+                }
+                
+                // Node-wise consumption for chart
+                nodeConsumption[node.name || nodeId] = node.total_kwh || 0;
+            });
+            
+            // Update analytics cards with real data
+            document.getElementById('total-energy').textContent = totalEnergy.toFixed(2) + ' kWh';
+            document.getElementById('carbon-saved').textContent = (totalMonthly * 0.5).toFixed(1) + ' kg';
+            document.getElementById('money-saved').textContent = '₱' + (totalMonthly * 8.0).toFixed(2);
+            
+            // Update node chart with real data
+            updateNodeChart(nodeConsumption);
+        }
+
+        // Update node chart with real data
+        function updateNodeChart(nodeConsumption) {
+            const labels = Object.keys(nodeConsumption);
+            const data = Object.values(nodeConsumption);
+            
+            nodeChart.data.labels = labels;
+            nodeChart.data.datasets[0].data = data;
+            nodeChart.update();
+        }
+
+        // Update historical charts with real data
+        function updateHistoricalCharts(historical) {
+            if (!historical) return;
+            
+            // Update monthly chart
+            if (historical.monthly) {
+                const months = Object.keys(historical.monthly);
+                const monthlyData = Object.values(historical.monthly);
+                
+                analyticsChart.data.labels = months;
+                analyticsChart.data.datasets[0].data = monthlyData;
+                analyticsChart.update();
+            }
+            
+            // Update daily chart
+            if (historical.daily) {
+                const days = Object.keys(historical.daily);
+                const dailyData = Object.values(historical.daily);
+                
+                dailyChart.data.labels = days;
+                dailyChart.data.datasets[0].data = dailyData;
+                dailyChart.update();
+            }
+            
+            // Update power trend chart
+            if (historical.hourly) {
+                const hours = Object.keys(historical.hourly);
+                const hourlyData = Object.values(historical.hourly);
+                
+                powerChart.data.labels = hours;
+                powerChart.data.datasets[0].data = hourlyData;
+                powerChart.update();
+            }
+        }
+
+        // Update nodes UI
+        function updateNodesUI(nodes) {
+            const nodesList = document.getElementById('nodes-list');
+            const nodesContainer = document.getElementById('nodes-container');
+            
+            if (!nodesList || !nodesContainer) return;
+            
+            let nodesHTML = '';
+            let dashboardNodesHTML = '';
+            let faultCount = 0;
+            
+            Object.keys(nodes).forEach(nodeId => {
+                const node = nodes[nodeId];
+                const statusClass = getStatusClass(node.status);
+                const statusText = getStatusText(node.status);
+                
+                // Count faults for badge
+                if (node.status !== 'online') {
+                    faultCount++;
+                }
+                
+                const nodeHTML = `
+                    <div class="node-card">
+                        <div class="node-header">
+                            <h3 style="color: var(--primary);">
+                                <i class="fas fa-microchip"></i> ${node.name || 'Unnamed Node'}
+                            </h3>
+                            <span class="status ${statusClass}">
+                                <i class="fas fa-circle"></i> ${statusText}
+                            </span>
+                        </div>
+                        <div class="form-group">
+                            <label>Node ID</label>
+                            <input type="text" value="${nodeId}" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label>Current (A)</label>
+                            <input type="text" value="${node.current_current || 0}" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label>Power (W)</label>
+                            <input type="text" value="${node.current_power || 0}" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label>Energy (kWh)</label>
+                            <input type="text" value="${node.total_kwh || 0}" readonly>
+                        </div>
+                        <div class="node-actions">
+                            <button class="btn btn-on" onclick="controlNode('${nodeId}', 'on')">
+                                <i class="fas fa-power-off"></i> Turn On
+                            </button>
+                            <button class="btn btn-off" onclick="controlNode('${nodeId}', 'off')">
+                                <i class="fas fa-power-off"></i> Turn Off
+                            </button>
+                            <button class="btn btn-reset" onclick="resetNode('${nodeId}')">
+                                <i class="fas fa-redo"></i> Reset
+                            </button>
+                        </div>
+                    </div>
+                `;
+                
+                nodesHTML += nodeHTML;
+                
+                // For dashboard, show only active nodes
+                if (node.status === 'online') {
+                    dashboardNodesHTML += nodeHTML;
+                }
+            });
+            
+            nodesList.innerHTML = nodesHTML || '<p>No nodes found</p>';
+            nodesContainer.innerHTML = dashboardNodesHTML || '<p>No active nodes</p>';
+            
+            // Update fault badge
+            const faultBadge = document.getElementById('fault-badge');
+            if (faultBadge) {
+                if (faultCount > 0) {
+                    faultBadge.textContent = faultCount;
+                    faultBadge.style.display = 'flex';
+                } else {
+                    faultBadge.style.display = 'none';
+                }
+            }
+        }
+
+        // Update dashboard nodes
+        function updateDashboardNodes(nodes) {
+            const nodesContainer = document.getElementById('nodes-container');
+            if (!nodesContainer) return;
+            
+            let dashboardNodesHTML = '';
+            let activeNodeCount = 0;
+            
+            Object.keys(nodes).forEach(nodeId => {
+                const node = nodes[nodeId];
+                
+                // For dashboard, show only active nodes
+                if (node.status === 'online') {
+                    activeNodeCount++;
+                    const statusClass = getStatusClass(node.status);
+                    const statusText = getStatusText(node.status);
+                    
+                    dashboardNodesHTML += `
+                        <div class="node-card">
+                            <div class="node-header">
+                                <h3 style="color: var(--primary);">
+                                    <i class="fas fa-microchip"></i> ${node.name || 'Unnamed Node'}
+                                </h3>
+                                <span class="status ${statusClass}">
+                                    <i class="fas fa-circle"></i> ${statusText}
+                                </span>
+                            </div>
+                            <div class="form-group">
+                                <label>Node ID</label>
+                                <input type="text" value="${nodeId}" readonly>
+                            </div>
+                            <div class="form-group">
+                                <label>Current (A)</label>
+                                <input type="text" value="${node.current_current || 0}" readonly>
+                            </div>
+                            <div class="form-group">
+                                <label>Power (W)</label>
+                                <input type="text" value="${node.current_power || 0}" readonly>
+                            </div>
+                            <div class="form-group">
+                                <label>Energy (kWh)</label>
+                                <input type="text" value="${node.total_kwh || 0}" readonly>
+                            </div>
+                            <div class="node-actions">
+                                <button class="btn btn-on" onclick="controlNode('${nodeId}', 'on')">
+                                    <i class="fas fa-power-off"></i> Turn On
+                                </button>
+                                <button class="btn btn-off" onclick="controlNode('${nodeId}', 'off')">
+                                    <i class="fas fa-power-off"></i> Turn Off
+                                </button>
+                                <button class="btn btn-reset" onclick="resetNode('${nodeId}')">
+                                    <i class="fas fa-redo"></i> Reset
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }
+            });
+            
+            nodesContainer.innerHTML = dashboardNodesHTML || '<p>No active nodes</p>';
+            
+            // Update system stats
+            document.getElementById('system-stats').innerHTML = `
+                <span style="color: var(--success);">
+                    <i class="fas fa-check-circle"></i> ${activeNodeCount} Active Nodes
+                </span>
+            `;
+        }
+
+        // Update consumption UI
+        function updateConsumptionUI(consumption) {
+            // Update dashboard stats
+            if (consumption.daily) {
+                document.getElementById('daily-kwh').textContent = `${consumption.daily.toFixed(2)} kWh`;
+                document.getElementById('daily-change').innerHTML = `
+                    <i class="fas fa-arrow-up"></i> ${(consumption.daily * 0.1).toFixed(2)} kWh vs yesterday
+                `;
+            }
+            
+            if (consumption.weekly) {
+                document.getElementById('weekly-kwh').textContent = `${consumption.weekly.toFixed(2)} kWh`;
+                document.getElementById('weekly-change').innerHTML = `
+                    <i class="fas fa-arrow-down"></i> ${(consumption.weekly * 0.05).toFixed(2)} kWh vs last week
+                `;
+            }
+            
+            if (consumption.monthly) {
+                document.getElementById('monthly-kwh').textContent = `${consumption.monthly.toFixed(2)} kWh`;
+                document.getElementById('monthly-change').innerHTML = `
+                    <i class="fas fa-arrow-up"></i> ${(consumption.monthly * 0.15).toFixed(2)} kWh vs last month
+                `;
+            }
+        }
+
+        // Update master keys UI
+        function updateMasterKeysUI(masterKeys) {
+            const masterKeysList = document.getElementById('master-keys-list');
+            if (!masterKeysList) return;
+            
+            let masterKeysHTML = '';
+            
+            Object.keys(masterKeys).forEach(keyId => {
+                const key = masterKeys[keyId];
+                masterKeysHTML += `
+                    <div style="padding: 1rem; border: 1px solid #e9ecef; border-radius: 8px; margin-bottom: 1rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <h4 style="color: var(--primary); margin-bottom: 0.5rem;">
+                                    <i class="fas fa-key"></i> ${key.name || 'Unnamed Key'}
+                                </h4>
+                                <p style="color: #666; font-size: 0.9rem;">ID: ${keyId}</p>
+                            </div>
+                            <div>
+                                <span class="status ${key.present ? 'status-online' : 'status-offline'}">
+                                    <i class="fas fa-${key.present ? 'check' : 'times'}-circle"></i> ${key.present ? 'Present' : 'Absent'}
+                                </span>
+                            </div>
+                        </div>
+                        <div style="margin-top: 0.5rem; font-size: 0.8rem; color: #666;">
+                            Last Update: ${key.last_update || 'Unknown'}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            masterKeysList.innerHTML = masterKeysHTML || '<p>No master keys registered</p>';
+        }
+
+        // Update settings UI
+        function updateSettingsUI(settings) {
+            if (settings.alert_phone) {
+                document.getElementById('alert-phone').value = settings.alert_phone;
+            }
+            
+            if (settings.overload_threshold) {
+                document.getElementById('overload-threshold').value = settings.overload_threshold;
+            }
+            
+            if (settings.short_threshold) {
+                document.getElementById('short-threshold').value = settings.short_threshold;
+            }
+            
+            if (settings.rate_per_kwh) {
+                document.getElementById('rate-per-kwh').value = settings.rate_per_kwh;
+            }
+        }
+
+        // Get status class for UI
+        function getStatusClass(status) {
+            const statusClasses = {
+                'online': 'status-online',
+                'offline': 'status-offline',
+                'fault': 'status-fault',
+                'overload': 'status-overload',
+                'short_circuit': 'status-short_circuit',
+                'override': 'status-override'
+            };
+            
+            return statusClasses[status] || 'status-offline';
+        }
+
+        // Get status text for UI
+        function getStatusText(status) {
+            const statusTexts = {
+                'online': 'Online',
+                'offline': 'Offline',
+                'fault': 'Fault',
+                'overload': 'Overload',
+                'short_circuit': 'Short Circuit',
+                'override': 'Override'
+            };
+            
+            return statusTexts[status] || 'Unknown';
+        }
+
+        // Control node (turn on/off)
+        function controlNode(nodeId, action) {
+            database.ref('nodes/' + nodeId).update({
+                command: action,
+                lastCommand: new Date().toISOString()
+            }).then(() => {
+                showNotification(`Node ${nodeId} ${action === 'on' ? 'turned on' : 'turned off'}`, 'success');
+            }).catch(error => {
+                showNotification(`Error controlling node: ${error.message}`, 'error');
+            });
+        }
+
+        // Reset node
+        function resetNode(nodeId) {
+            database.ref('nodes/' + nodeId).update({
+                command: 'reset',
+                status: 'online',
+                lastReset: new Date().toISOString()
+            }).then(() => {
+                showNotification(`Node ${nodeId} reset successfully`, 'success');
+            }).catch(error => {
+                showNotification(`Error resetting node: ${error.message}`, 'error');
+            });
+        }
+
+        // Register master key
+        function registerMasterKey() {
+            const keyId = document.getElementById('new-key-id').value;
+            const keyName = document.getElementById('new-key-name').value;
+            
+            if (!keyId || !keyName) {
+                showNotification('Please enter both key ID and name', 'error');
+                return;
+            }
+            
+            database.ref('master_keys/' + keyId).set({
+                name: keyName,
+                registeredAt: new Date().toISOString(),
+                active: true
+            }).then(() => {
+                showNotification(`Master key "${keyName}" registered successfully`, 'success');
+                document.getElementById('new-key-id').value = '';
+                document.getElementById('new-key-name').value = '';
+            }).catch(error => {
+                showNotification(`Error registering master key: ${error.message}`, 'error');
+            });
+        }
+
+        // Save settings with proper API call
         async function saveSettings() {
+            const settings = {
+                alert_phone: document.getElementById('alert-phone').value,
+                overload_threshold: parseFloat(document.getElementById('overload-threshold').value) || 4.5,
+                short_threshold: parseFloat(document.getElementById('short-threshold').value) || 8.0,
+                rate_per_kwh: parseFloat(document.getElementById('rate-per-kwh').value) || 8.0
+            };
+            
             try {
-                const btn = event.target;
-                const originalHTML = btn.innerHTML;
-                btn.innerHTML = '<div class="loading"></div> Saving...';
-
-                const settings = {
-                    alert_phone: document.getElementById('alert-phone').value,
-                    overload_threshold: parseFloat(document.getElementById('overload-threshold').value),
-                    short_threshold: parseFloat(document.getElementById('short-threshold').value),
-                    rate_per_kwh: parseFloat(document.getElementById('rate-per-kwh').value)
-                };
-
                 const response = await fetch('/api/settings', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
                     body: JSON.stringify(settings)
                 });
-
-                document.getElementById('settings-message').innerHTML = 
-                    '<div style="color: var(--success); background: rgba(76, 201, 240, 0.1); padding: 1rem; border-radius: 8px; border-left: 4px solid var(--success);">' +
-                    '<i class="fas fa-check-circle"></i> Settings saved successfully!</div>';
                 
-                btn.innerHTML = originalHTML;
+                const result = await response.json();
                 
-                setTimeout(() => {
-                    document.getElementById('settings-message').innerHTML = '';
-                }, 3000);
+                if (result.status === 'success') {
+                    showNotification('Settings saved successfully', 'success');
+                    
+                    // Update Firebase directly as well for real-time sync
+                    database.ref('settings').set(settings).then(() => {
+                        console.log('Settings also updated in Firebase');
+                    });
+                } else {
+                    showNotification(`Error saving settings: ${result.message}`, 'error');
+                }
             } catch (error) {
-                console.error('Error saving settings:', error);
-                document.getElementById('settings-message').innerHTML = 
-                    '<div style="color: var(--danger); background: rgba(247, 37, 133, 0.1); padding: 1rem; border-radius: 8px; border-left: 4px solid var(--danger);">' +
-                    '<i class="fas fa-exclamation-triangle"></i> Error saving settings!</div>';
-                btn.innerHTML = originalHTML;
+                showNotification(`Error saving settings: ${error.message}`, 'error');
             }
         }
 
-        // Analytics Functions
-        async function loadAnalytics() {
-            try {
-                const response = await fetch('/api/analytics');
-                const data = await response.json();
-                
-                document.getElementById('carbon-saved').textContent = data.carbon_saved + ' kg';
-                document.getElementById('money-saved').textContent = '$' + data.money_saved;
-                
-                initializeAnalyticsChart(data.historical_data);
-            } catch (error) {
-                console.error('Error loading analytics:', error);
-            }
-        }
-
-        function initializeAnalyticsChart(historicalData) {
-            if (analyticsChart) {
-                analyticsChart.destroy();
-            }
+        // Calculate energy consumption automatically
+        function calculateAutoConsumption() {
+            const power = parseFloat(document.getElementById('power').value) || 0;
+            const hours = parseFloat(document.getElementById('hours').value) || 0;
+            const rate = parseFloat(document.getElementById('rate').value) || 0;
             
-            const ctx = document.getElementById('analyticsChart').getContext('2d');
-            
-            // Use real data if available, otherwise show message
-            if (historicalData && historicalData.length > 0) {
-                const labels = historicalData.map(item => item.date);
-                const data = historicalData.map(item => item.energy);
+            if (power > 0 && hours > 0) {
+                const kwh = (power * hours) / 1000;
+                const cost = kwh * rate;
+                const monthlyCost = cost * 30;
                 
-                analyticsChart = new Chart(ctx, {
-                    type: 'bar',
-                    data: {
-                        labels: labels,
-                        datasets: [{
-                            label: 'Energy Consumption (kWh)',
-                            data: data,
-                            backgroundColor: 'rgba(67, 97, 238, 0.8)',
-                            borderColor: '#4361ee',
-                            borderWidth: 2,
-                            borderRadius: 8
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: {
-                                position: 'top',
-                            }
-                        }
-                    }
-                });
+                document.getElementById('auto-kwh').textContent = kwh.toFixed(2);
+                document.getElementById('auto-cost').textContent = cost.toFixed(2);
+                document.getElementById('auto-monthly').textContent = monthlyCost.toFixed(2);
+                
+                document.getElementById('auto-result').classList.add('show');
             } else {
-                ctx.font = '16px Poppins';
-                ctx.fillStyle = '#666';
-                ctx.textAlign = 'center';
-                ctx.fillText('No historical data available', 200, 100);
+                document.getElementById('auto-result').classList.remove('show');
             }
+        }
+
+        // Show notification
+        function showNotification(message, type) {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.innerHTML = `
+                <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'}"></i>
+                ${message}
+            `;
+            
+            document.body.appendChild(notification);
+            
+            // Remove notification after 5 seconds
+            setTimeout(() => {
+                notification.style.animation = 'slideOutRight 0.3s ease';
+                setTimeout(() => {
+                    if (notification.parentNode) {
+                        notification.parentNode.removeChild(notification);
+                    }
+                }, 300);
+            }, 5000);
+        }
+
+        // Export data function
+        function exportData() {
+            // This would export the current data to a CSV or JSON file
+            showNotification('Data export functionality would be implemented here', 'info');
+        }
+
+        // Simulate data for demo purposes
+        function simulateData() {
+            // This function would simulate data changes for demo purposes
+            // In a real application, this would be handled by the actual hardware
+            showNotification('Data simulation would be implemented here', 'info');
         }
     </script>
 </body>
-
 </html>
