@@ -1189,7 +1189,7 @@
             loadDashboardData();
             loadNodesData();
             loadMasterKeys();
-            loadSettings(); // Load settings from backend
+            loadSettings();
             
             // Set up real-time listeners
             setupRealtimeListeners();
@@ -1289,8 +1289,6 @@
                 loadNodesData();
             } else if (target === 'analytics') {
                 loadAnalyticsData();
-            } else if (target === 'settings') {
-                loadSettings();
             }
         }
 
@@ -1542,19 +1540,9 @@
             // This will be populated by real-time listeners
         }
 
-        // Load settings with proper API call
-        async function loadSettings() {
-            try {
-                const response = await fetch('/api/settings');
-                const settings = await response.json();
-                
-                if (settings) {
-                    updateSettingsUI(settings);
-                }
-            } catch (error) {
-                console.error('Error loading settings:', error);
-                showNotification('Error loading settings from server', 'error');
-            }
+        // Load settings
+        function loadSettings() {
+            // This will be populated by real-time listeners
         }
 
         // Load analytics data
@@ -1651,13 +1639,18 @@
             
             Object.keys(nodes).forEach(nodeId => {
                 const node = nodes[nodeId];
-                const statusClass = getStatusClass(node.status);
-                const statusText = getStatusText(node.status);
+                const statusClass = getStatusClass(node.status || 'online');
+                const statusText = getStatusText(node.status || 'online');
                 
                 // Count faults for badge
-                if (node.status !== 'online') {
+                if (node.fault_status && node.fault_status !== 'none') {
                     faultCount++;
                 }
+                
+                // Convert energy to kWh properly
+                const totalKwh = node.total_kwh || 0;
+                const dailyKwh = node.daily_kwh || 0;
+                const monthlyKwh = node.monthly_kwh || 0;
                 
                 const nodeHTML = `
                     <div class="node-card">
@@ -1675,15 +1668,19 @@
                         </div>
                         <div class="form-group">
                             <label>Current (A)</label>
-                            <input type="text" value="${node.current_current || 0}" readonly>
+                            <input type="text" value="${(node.current_current || 0).toFixed(2)}" readonly>
                         </div>
                         <div class="form-group">
                             <label>Power (W)</label>
-                            <input type="text" value="${node.current_power || 0}" readonly>
+                            <input type="text" value="${(node.current_power || 0).toFixed(2)}" readonly>
                         </div>
                         <div class="form-group">
-                            <label>Energy (kWh)</label>
-                            <input type="text" value="${node.total_kwh || 0}" readonly>
+                            <label>Total Energy (kWh)</label>
+                            <input type="text" value="${totalKwh.toFixed(2)}" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label>Today (kWh)</label>
+                            <input type="text" value="${dailyKwh.toFixed(2)}" readonly>
                         </div>
                         <div class="node-actions">
                             <button class="btn btn-on" onclick="controlNode('${nodeId}', 'on')">
@@ -1701,8 +1698,8 @@
                 
                 nodesHTML += nodeHTML;
                 
-                // For dashboard, show only active nodes
-                if (node.status === 'online') {
+                // For dashboard, show only online nodes
+                if (!node.fault_status || node.fault_status === 'none') {
                     dashboardNodesHTML += nodeHTML;
                 }
             });
@@ -1734,10 +1731,14 @@
                 const node = nodes[nodeId];
                 
                 // For dashboard, show only active nodes
-                if (node.status === 'online') {
+                if (!node.fault_status || node.fault_status === 'none') {
                     activeNodeCount++;
-                    const statusClass = getStatusClass(node.status);
-                    const statusText = getStatusText(node.status);
+                    const statusClass = getStatusClass(node.status || 'online');
+                    const statusText = getStatusText(node.status || 'online');
+                    
+                    // Convert energy to kWh properly
+                    const totalKwh = node.total_kwh || 0;
+                    const dailyKwh = node.daily_kwh || 0;
                     
                     dashboardNodesHTML += `
                         <div class="node-card">
@@ -1755,15 +1756,19 @@
                             </div>
                             <div class="form-group">
                                 <label>Current (A)</label>
-                                <input type="text" value="${node.current_current || 0}" readonly>
+                                <input type="text" value="${(node.current_current || 0).toFixed(2)}" readonly>
                             </div>
                             <div class="form-group">
                                 <label>Power (W)</label>
-                                <input type="text" value="${node.current_power || 0}" readonly>
+                                <input type="text" value="${(node.current_power || 0).toFixed(2)}" readonly>
                             </div>
                             <div class="form-group">
-                                <label>Energy (kWh)</label>
-                                <input type="text" value="${node.total_kwh || 0}" readonly>
+                                <label>Total Energy (kWh)</label>
+                                <input type="text" value="${totalKwh.toFixed(2)}" readonly>
+                            </div>
+                            <div class="form-group">
+                                <label>Today (kWh)</label>
+                                <input type="text" value="${dailyKwh.toFixed(2)}" readonly>
                             </div>
                             <div class="node-actions">
                                 <button class="btn btn-on" onclick="controlNode('${nodeId}', 'on')">
@@ -1794,24 +1799,24 @@
         // Update consumption UI
         function updateConsumptionUI(consumption) {
             // Update dashboard stats
-            if (consumption.daily) {
+            if (consumption.daily !== undefined) {
                 document.getElementById('daily-kwh').textContent = `${consumption.daily.toFixed(2)} kWh`;
                 document.getElementById('daily-change').innerHTML = `
-                    <i class="fas fa-arrow-up"></i> ${(consumption.daily * 0.1).toFixed(2)} kWh vs yesterday
+                    <i class="fas fa-bolt"></i> Today's Consumption
                 `;
             }
             
-            if (consumption.weekly) {
+            if (consumption.weekly !== undefined) {
                 document.getElementById('weekly-kwh').textContent = `${consumption.weekly.toFixed(2)} kWh`;
                 document.getElementById('weekly-change').innerHTML = `
-                    <i class="fas fa-arrow-down"></i> ${(consumption.weekly * 0.05).toFixed(2)} kWh vs last week
+                    <i class="fas fa-calendar-week"></i> This Week
                 `;
             }
             
-            if (consumption.monthly) {
+            if (consumption.monthly !== undefined) {
                 document.getElementById('monthly-kwh').textContent = `${consumption.monthly.toFixed(2)} kWh`;
                 document.getElementById('monthly-change').innerHTML = `
-                    <i class="fas fa-arrow-up"></i> ${(consumption.monthly * 0.15).toFixed(2)} kWh vs last month
+                    <i class="fas fa-calendar-alt"></i> This Month
                 `;
             }
         }
@@ -1825,6 +1830,9 @@
             
             Object.keys(masterKeys).forEach(keyId => {
                 const key = masterKeys[keyId];
+                const isPresent = key.present ? 'status-online' : 'status-offline';
+                const statusText = key.present ? 'Present' : 'Absent';
+                
                 masterKeysHTML += `
                     <div style="padding: 1rem; border: 1px solid #e9ecef; border-radius: 8px; margin-bottom: 1rem;">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -1833,15 +1841,13 @@
                                     <i class="fas fa-key"></i> ${key.name || 'Unnamed Key'}
                                 </h4>
                                 <p style="color: #666; font-size: 0.9rem;">ID: ${keyId}</p>
+                                <p style="color: #666; font-size: 0.9rem;">Location: ${key.location || 'Unknown'}</p>
                             </div>
                             <div>
-                                <span class="status ${key.present ? 'status-online' : 'status-offline'}">
-                                    <i class="fas fa-${key.present ? 'check' : 'times'}-circle"></i> ${key.present ? 'Present' : 'Absent'}
+                                <span class="status ${isPresent}">
+                                    <i class="fas fa-circle"></i> ${statusText}
                                 </span>
                             </div>
-                        </div>
-                        <div style="margin-top: 0.5rem; font-size: 0.8rem; color: #666;">
-                            Last Update: ${key.last_update || 'Unknown'}
                         </div>
                     </div>
                 `;
@@ -1899,25 +1905,49 @@
 
         // Control node (turn on/off)
         function controlNode(nodeId, action) {
-            database.ref('nodes/' + nodeId).update({
-                command: action,
-                lastCommand: new Date().toISOString()
-            }).then(() => {
-                showNotification(`Node ${nodeId} ${action === 'on' ? 'turned on' : 'turned off'}`, 'success');
-            }).catch(error => {
+            fetch(`/api/nodes/${nodeId}/control`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    command: action,
+                    override: true
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showNotification(`Node ${nodeId} ${action === 'on' ? 'turned on' : 'turned off'}`, 'success');
+                } else {
+                    showNotification(`Error controlling node: ${data.message}`, 'error');
+                }
+            })
+            .catch(error => {
                 showNotification(`Error controlling node: ${error.message}`, 'error');
             });
         }
 
         // Reset node
         function resetNode(nodeId) {
-            database.ref('nodes/' + nodeId).update({
-                command: 'reset',
-                status: 'online',
-                lastReset: new Date().toISOString()
-            }).then(() => {
-                showNotification(`Node ${nodeId} reset successfully`, 'success');
-            }).catch(error => {
+            fetch(`/api/nodes/${nodeId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    command: 'reset'
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showNotification(`Node ${nodeId} reset successfully`, 'success');
+                } else {
+                    showNotification(`Error resetting node: ${data.message}`, 'error');
+                }
+            })
+            .catch(error => {
                 showNotification(`Error resetting node: ${error.message}`, 'error');
             });
         }
@@ -1932,52 +1962,59 @@
                 return;
             }
             
-            database.ref('master_keys/' + keyId).set({
-                name: keyName,
-                registeredAt: new Date().toISOString(),
-                active: true
-            }).then(() => {
-                showNotification(`Master key "${keyName}" registered successfully`, 'success');
-                document.getElementById('new-key-id').value = '';
-                document.getElementById('new-key-name').value = '';
-            }).catch(error => {
+            fetch('/api/master_keys', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    key_id: keyId,
+                    name: keyName
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showNotification(`Master key "${keyName}" registered successfully`, 'success');
+                    document.getElementById('new-key-id').value = '';
+                    document.getElementById('new-key-name').value = '';
+                } else {
+                    showNotification(`Error registering master key: ${data.message}`, 'error');
+                }
+            })
+            .catch(error => {
                 showNotification(`Error registering master key: ${error.message}`, 'error');
             });
         }
 
-        // Save settings with proper API call
-        async function saveSettings() {
+        // Save settings
+        function saveSettings() {
             const settings = {
                 alert_phone: document.getElementById('alert-phone').value,
                 overload_threshold: parseFloat(document.getElementById('overload-threshold').value) || 4.5,
                 short_threshold: parseFloat(document.getElementById('short-threshold').value) || 8.0,
-                rate_per_kwh: parseFloat(document.getElementById('rate-per-kwh').value) || 8.0
+                rate_per_kwh: parseFloat(document.getElementById('rate-per-kwh').value) || 8.0,
+                last_updated: new Date().toISOString()
             };
             
-            try {
-                const response = await fetch('/api/settings', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(settings)
-                });
-                
-                const result = await response.json();
-                
-                if (result.status === 'success') {
-                    showNotification('Settings saved successfully', 'success');
-                    
-                    // Update Firebase directly as well for real-time sync
-                    database.ref('settings').set(settings).then(() => {
-                        console.log('Settings also updated in Firebase');
-                    });
+            fetch('/api/settings', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(settings)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showNotification('Settings saved and sent to all nodes!', 'success');
                 } else {
-                    showNotification(`Error saving settings: ${result.message}`, 'error');
+                    showNotification('Error saving settings: ' + data.message, 'error');
                 }
-            } catch (error) {
-                showNotification(`Error saving settings: ${error.message}`, 'error');
-            }
+            })
+            .catch(error => {
+                showNotification('Error saving settings: ' + error.message, 'error');
+            });
         }
 
         // Calculate energy consumption automatically
